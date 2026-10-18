@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Studio — Retrieval Simulator</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#f7f7fa, #101014);
+    --surface: light-dark(#ffffff, #19191f);
+    --surface-2: light-dark(#f1f1f6, #22222a);
+    --text: light-dark(#22222b, #f5f5f8);
+    --muted: light-dark(#737381, #a4a4b2);
+    --border: light-dark(#e5e5ec, #34343f);
+    --pink: #fd3e83;
+    --purple: #8b5cf6;
+    --blue: #4f8cff;
+    --green: #19a974;
+    --orange: #f59e0b;
+    --shadow: 0 12px 35px rgba(30, 20, 60, .08);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button, input, textarea, select { font: inherit; }
+  button { cursor: pointer; }
+  .app-root { min-height: 100vh; background-color: var(--bg); }
+  .topbar { height: 70px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(16px, 4vw, 54px); position: sticky; top: 0; z-index: 10; }
+  .brand { display: flex; align-items: center; gap: 11px; font-size: 19px; font-weight: 850; letter-spacing: -.7px; }
+  .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; color: white; background: linear-gradient(135deg, #ff8a42, #fd3e83 48%, #8b5cf6); box-shadow: 0 5px 13px #fd3e8338; font-size: 19px; }
+  .brand small { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .08em; margin-left: 4px; }
+  .top-actions { display: flex; align-items: center; gap: 10px; }
+  .pill { border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .online-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; }
+  .layout { max-width: 1260px; margin: auto; padding: 28px 22px 50px; display: grid; grid-template-columns: 245px minmax(0, 1fr); gap: 26px; }
+  .sidebar { align-self: start; position: sticky; top: 94px; }
+  .side-card, .panel, .step-card, .feed-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }
+  .side-card { padding: 17px; margin-bottom: 16px; }
+  .side-title { color: var(--muted); font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .13em; margin: 0 0 12px; }
+  .step-nav { display: grid; gap: 5px; }
+  .nav-step { width: 100%; display: flex; align-items: center; gap: 11px; text-align: left; padding: 10px 9px; border: 0; border-radius: 11px; color: var(--muted); background: transparent; transition: .18s ease; }
+  .nav-step:hover { background: var(--surface-2); color: var(--text); }
+  .nav-step.active { background: linear-gradient(110deg, #fd3e8317, #8b5cf617); color: var(--text); font-weight: 800; }
+  .nav-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--surface-2); font-size: 12px; font-weight: 850; flex: 0 0 auto; }
+  .nav-step.active .nav-number { color: white; background: linear-gradient(135deg, var(--pink), var(--purple)); }
+  .nav-label { font-size: 12px; line-height: 1.3; }
+  .side-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .side-note strong { color: var(--text); }
+  .main { min-width: 0; }
+  .hero { display: flex; justify-content: space-between; gap: 20px; align-items: flex-end; margin: 3px 0 23px; }
+  .eyebrow { font-size: 11px; color: var(--pink); text-transform: uppercase; font-weight: 900; letter-spacing: .15em; margin-bottom: 8px; }
+  h1 { font-size: clamp(28px, 3.5vw, 42px); letter-spacing: -1.8px; line-height: 1.05; margin: 0; }
+  .gradient-text { background: linear-gradient(100deg, var(--pink), var(--purple)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { color: var(--muted); max-width: 620px; line-height: 1.6; font-size: 14px; margin: 12px 0 0; }
+  .reset-btn, .secondary-btn { border: 1px solid var(--border); color: var(--text); background: var(--surface); border-radius: 11px; padding: 10px 13px; font-weight: 750; font-size: 12px; white-space: nowrap; }
+  .primary-btn { border: 0; color: white; background: linear-gradient(105deg, var(--pink), var(--purple)); border-radius: 11px; padding: 11px 16px; font-weight: 800; font-size: 12px; box-shadow: 0 6px 16px #8b5cf62b; }
+  .primary-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .secondary-btn:hover, .reset-btn:hover { border-color: var(--purple); }
+  .progress-wrap { margin: 0 0 20px; }
+  .progress-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-weight: 750; margin-bottom: 8px; }
+  .progress-track { height: 6px; border-radius: 99px; overflow: hidden; background: var(--surface-2); }
+  .progress-fill { height: 100%; width: 14.285%; border-radius: 99px; background: linear-gradient(90deg, var(--pink), var(--purple)); transition: width .3s ease; }
+  .stage-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
+  .stage-icon { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; font-size: 21px; background: linear-gradient(135deg, #fd3e831a, #8b5cf61a); border: 1px solid #8b5cf626; }
+  .stage-heading h2 { font-size: 20px; letter-spacing: -.5px; margin: 0 0 4px; }
+  .stage-heading p { font-size: 12px; margin: 0; color: var(--muted); }
+  .panel { padding: clamp(17px, 3vw, 25px); margin-bottom: 16px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
+  .panel-head h3 { font-size: 14px; margin: 0; }
+  .tiny-label { font-size: 10px; color: var(--muted); font-weight: 850; text-transform: uppercase; letter-spacing: .1em; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: 10px; font-weight: 800; }
+  .tag.pink { color: var(--pink); background: #fd3e8314; }
+  .tag.green { color: var(--green); background: #19a97417; }
+  .tag.purple { color: var(--purple); background: #8b5cf617; }
+  .tag.blue { color: var(--blue); background: #4f8cff17; }
+  .doc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .doc { padding: 14px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); min-height: 140px; position: relative; }
+  .doc.selected { border-color: var(--purple); box-shadow: 0 0 0 2px #8b5cf620; }
+  .doc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+  .doc-emoji { font-size: 22px; }
+  .doc h4 { font-size: 12px; margin: 0 0 7px; }
+  .doc p { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 0; }
+  .doc-check { position: absolute; right: 11px; bottom: 11px; accent-color: var(--purple); }
+  .field-label { display: block; font-size: 11px; color: var(--muted); font-weight: 800; margin-bottom: 7px; }
+  textarea, input[type="text"], select { width: 100%; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 11px; padding: 12px; outline: none; resize: vertical; }
+  textarea:focus, input:focus, select:focus { border-color: var(--purple); box-shadow: 0 0 0 3px #8b5cf618; }
+  textarea { min-height: 115px; line-height: 1.55; font-size: 13px; }
+  .input-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+  .hint { color: var(--muted); font-size: 11px; line-height: 1.55; margin-top: 8px; }
+  .chunk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .chunk { border: 1px solid var(--border); border-radius: 12px; padding: 13px; background: var(--surface); min-width: 0; }
+  .chunk-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .chunk-id { color: var(--purple); font-weight: 900; font-size: 10px; letter-spacing: .06em; }
+  .chunk p { margin: 0; font-size: 12px; line-height: 1.55; }
+  .chunk-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .embedding-list { display: grid; gap: 10px; }
+  .embedding-row { display: grid; grid-template-columns: 65px 1fr 85px; gap: 12px; align-items: center; font-size: 11px; }
+  .vector { display: flex; gap: 3px; height: 28px; align-items: end; }
+  .vector span { flex: 1; max-width: 16px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--purple), var(--pink)); opacity: .78; }
+  .bar-track { height: 7px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--pink), var(--purple)); }
+  .db-record { display: grid; grid-template-columns: 80px 1fr 95px; gap: 12px; align-items: center; border-bottom: 1px solid var(--border); padding: 12px 0; }
+  .db-record:last-child { border-bottom: 0; }
+  .db-record strong { display: block; font-size: 11px; margin-bottom: 4px; }
+  .db-record p { font-size: 11px; color: var(--muted); margin: 0; line-height: 1.45; }
+  .db-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--surface-2); display: grid; place-items: center; font-size: 17px; }
+  .search-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mode-card { padding: 15px; border: 1px solid var(--border); border-radius: 13px; }
+  .mode-card h4 { font-size: 12px; margin: 0 0 6px; }
+  .mode-card p { font-size: 11px; color: var(--muted); margin: 0 0 10px; line-height: 1.5; }
+  .rank-list { display: grid; gap: 9px; }
+  .rank-item { display: grid; grid-template-columns: 27px minmax(0, 1fr) 85px; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 11px; padding: 10px; }
+  .rank-number { width: 25px; height: 25px; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font-size: 11px; font-weight: 900; }
+  .rank-item strong { display: block; font-size: 11px; margin-bottom: 4px; }
+  .rank-item p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+  .score { text-align: right; }
+  .score b { display: block; font-size: 12px; }
+  .score span { color: var(--muted); font-size: 9px; }
+  .answer-box { border-radius: 14px; padding: 18px; background: linear-gradient(135deg, #fd3e830c, #8b5cf610); border: 1px solid #8b5cf62c; }
+  .answer-box p { font-size: 13px; line-height: 1.7; margin: 0; }
+  .answer-cite { display: inline-block; color: var(--purple); font-weight: 850; font-size: 10px; margin: 4px 3px 0 0; }
+  .callout { display: flex; gap: 10px; padding: 12px; background: var(--surface-2); border-radius: 11px; color: var(--muted); font-size: 11px; line-height: 1.55; margin-top: 12px; }
+  .callout strong { color: var(--text); }
+  .footer-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; }
+  .empty { border: 1px dashed var(--border); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: var(--text); color: var(--bg); border-radius: 10px; padding: 11px 15px; font-size: 12px; font-weight: 800; transition: .25s; z-index: 20; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .mobile-nav { display: none; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 20px 15px 35px; }
+    .sidebar { position: static; }
+    .side-card:first-child { padding: 12px; }
+    .step-nav { display: flex; overflow-x: auto; padding-bottom: 3px; }
+    .nav-step { width: auto; min-width: 105px; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .side-card:not(:first-child) { display: none; }
+    .doc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .topbar { height: 60px; padding: 0 14px; }
+    .brand { font-size: 16px; }
+    .brand small, .top-actions .pill { display: none; }
+    .layout { padding-top: 17px; }
+    .hero { align-items: flex-start; flex-direction: column; }
+    .hero .reset-btn { align-self: flex-start; }
+    .doc-grid, .chunk-grid, .search-modes { grid-template-columns: 1fr; }
+    .input-row { grid-template-columns: 1fr; }
+    .embedding-row { grid-template-columns: 52px 1fr 65px; gap: 8px; }
+    .db-record { grid-template-columns: 36px 1fr; }
+    .db-record > .tag { display: none; }
+    .rank-item { grid-template-columns: 25px minmax(0, 1fr) 64px; gap: 7px; padding: 8px; }
+    .footer-actions { flex-direction: column-reverse; }
+    .footer-actions button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="app-root">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">✳</span> rag.studio <small>LEARN BY DOING</small></div>
+    <div class="top-actions"><span class="pill"><span class="online-dot"></span>Local demo · No API needed</span><button class="reset-btn" id="resetTop">↻ Reset</button></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-card">
+        <p class="side-title">Your RAG pipeline</p>
+        <nav class="step-nav" id="stepNav">
+          <button class="nav-step active" data-step="0"><span class="nav-number">01</span><span class="nav-label">Ingest documents</span></button>
+          <button class="nav-step" data-step="1"><span class="nav-number">02</span><span class="nav-label">Chunk text</span></button>
+          <button class="nav-step" data-step="2"><span class="nav-number">03</span><span class="nav-label">Create embeddings</span></button>
+          <button class="nav-step" data-step="3"><span class="nav-number">04</span><span class="nav-label">Build knowledge base</span></button>
+          <button class="nav-step" data-step="4"><span class="nav-number">05</span><span class="nav-label">Retrieve context</span></button>
+          <button class="nav-step" data-step="5"><span class="nav-number">06</span><span class="nav-label">Rerank results</span></button>
+          <button class="nav-step" data-step="6"><span class="nav-number">07</span><span class="nav-label">Generate answer</span></button>
+        </nav>
+      </div>
+      <div class="side-card">
+        <p class="side-title">Quick concept</p>
+        <div class="side-note" id="sideConcept"><strong>RAG = Retrieve + Generate.</strong><br><br>Give an LLM useful external context at answer time instead of expecting it to know every private or changing fact.</div>
+      </div>
+      <div class="side-card">
+        <p class="side-title">Pipeline status</p>
+        <div class="side-note" id="statusText">Documents ready to ingest.</div>
+        <div style="height:8px"></div>
+        <div class="bar-track"><div class="bar-fill" id="sideProgress" style="width:0%"></div></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">A visual playground for AI</div>
+          <h1>Make RAG <span class="gradient-text">click.</span></h1>
+          <p>Follow a question from raw documents to a grounded answer. Change the data, inspect every stage, and see what retrieval actually sends to the model.</p>
+        </div>
+        <button class="reset-btn" id="resetHero">↻ Start over</button>
+      </section>
+
+      <div class="progress-wrap">
+        <div class="progress-top"><span id="progressLabel">STEP 1 OF 7 · INGEST</span><span id="progressPct">14% complete</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <div class="stage-heading">
+        <div class="stage-icon" id="stageIcon">📥</div>
+        <div><h2 id="stageTitle">Ingest your documents</h2><p id="stageSubtitle">Start with the information your assistant should know.</p></div>
+      </div>
+      <div id="stageContent"></div>
+      <div class="footer-actions">
+        <button class="secondary-btn" id="prevBtn">← Previous step</button>
+        <button class="primary-btn" id="nextBtn">Next: Chunk text →</button>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const starterDocs = [
+    { id: "DOC-01", title: "Company leave policy", emoji: "📄", description: "Paid time off, eligibility, and approval process.", text: "Full-time employees receive 15 paid vacation days each calendar year. Vacation requests should be submitted to the manager at least two weeks in advance. Unused vacation days do not automatically roll over to the next year." },
+    { id: "DOC-02", title: "Remote work guide", emoji: "🏡", description: "Hybrid schedule and home-office expectations.", text: "Employees may work remotely up to two days per week with manager approval. Teams meet in person on Wednesdays. Company laptops must use multi-factor authentication when connecting from outside the office." },
+    { id: "DOC-03", title: "IT security handbook", emoji: "🔐", description: "Passwords, access, and account security.", text: "All staff must enable multi-factor authentication. Passwords should be at least 14 characters and must never be shared. Report suspicious emails to the IT help desk immediately. Never send confidential company data to a personal email account." }
+  ];
+  const stageInfo = [
+    { icon:"📥", title:"Ingest your documents", subtitle:"Start with the information your assistant should know.", concept:"RAG begins with trusted source material. Ingestion loads documents and preserves useful metadata such as title, source, and access permissions." },
+    { icon:"✂️", title:"Split text into chunks", subtitle:"Smaller passages are easier to retrieve than entire documents.", concept:"Chunking controls the granularity of retrieval. Very large chunks can contain distracting details; tiny chunks may lose context. Overlap can preserve continuity between neighboring chunks." },
+    { icon:"🧬", title:"Create vector embeddings", subtitle:"Turn the meaning of each chunk into a numerical representation.", concept:"An embedding model maps text to a vector. Similar meanings often land near each other in vector space. The tiny bars here are illustrative, not real model embeddings." },
+    { icon:"🗄️", title:"Build the searchable knowledge base", subtitle:"Store vectors alongside the original text and metadata.", concept:"A vector database commonly stores an embedding, the original chunk text, and metadata. The vector helps find candidates; the readable text is what is normally passed to the LLM." },
+    { icon:"🔎", title:"Retrieve relevant context", subtitle:"Ask a question and compare semantic search with keyword search.", concept:"Vector search is useful for meaning and paraphrases. Keyword search is useful for exact terms and identifiers. Hybrid retrieval combines both signals; a system may then filter or deduplicate results." },
+    { icon:"🎯", title:"Rerank the candidates", subtitle:"Reorder retrieved chunks so the most useful evidence comes first.", concept:"A reranker examines the query and each candidate together. It can improve ordering, but it cannot recover a relevant chunk that retrieval never found." },
+    { icon:"💬", title:"Generate a grounded answer", subtitle:"Give the question and selected passages to the language model.", concept:"RAG supplies retrieved evidence as context at answer time. The LLM writes the response; citations help users trace claims back to source chunks. Poor retrieval can still lead to a poor answer." }
+  ];
+
+  let state = {
+    step: 0,
+    docs: starterDocs.map(d => ({...d, selected: true})),
+    chunks: [],
+    embeddings: [],
+    query: "How many vacation days do full-time employees receive?",
+    topK: 3,
+    hybrid: true,
+    rerank: true,
+    retrieved: [],
+    ranked: [],
+    answer: ""
+  };
+
+  const $ = id => document.getElementById(id);
+  const escapeHTML = str => String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const selectedDocs = () => state.docs.filter(d => d.selected);
+  const words = text => (text.toLowerCase().match(/[a-z0-9]+(?:['’-][a-z0-9]+)*/g) || []);
+  function chunkDocument(doc, maxWords = 25, overlap = 5) {
+    const tokens = doc.text.match(/\S+/g) || [];
+    const chunks = [];
+    let start = 0;
+    while (start < tokens.length) {
+      const end = Math.min(start + maxWords, tokens.length);
+      chunks.push({ id: `${doc.id}-C${String(chunks.length + 1).padStart(2,'0')}`, docId: doc.id, title: doc.title, text: tokens.slice(start, end).join(' '), start, end });
+      if (end >= tokens.length) break;
+      start = Math.max(start + 1, end - overlap);
+    }
+    return chunks;
+  }
+  function cosine(a,b) {
+    let dot=0, aa=0, bb=0;
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) { dot += (a[k]||0)*(b[k]||0); aa += (a[k]||0)**2; bb += (b[k]||0)**2; }
+    return aa && bb ? dot / (Math.sqrt(aa)*Math.sqrt(bb)) : 0;
+  }
+  // A transparent toy embedding: weighted word-frequency vectors, not a neural embedding model.
+  function toyEmbedding(text) {
+    const vec = {};
+    for (const w of words(text)) {
+      if (w.length < 3) continue;
+      vec[w] = (vec[w] || 0) + 1;
+    }
+    return vec;
+  }
+  function tokenOverlap(query, text) {
+    const q = new Set(words(query).filter(w => w.length > 2));
+    const t = new Set(words(text));
+    if (!q.size) return 0;
+    let matches=0; q.forEach(w => { if (t.has(w)) matches++; });
+    return matches / q.size;
+  }
+  function buildChunks() {
+    state.chunks = selectedDocs().flatMap(d => chunkDocument(d));
+    state.embeddings = state.chunks.map(c => ({...c, vector: toyEmbedding(c.text)}));
+    state.retrieved = [];
+    state.ranked = [];
+    state.answer = "";
+  }
+  function search() {
+    if (!state.chunks.length) buildChunks();
+    const qv = toyEmbedding(state.query);
+    const rows = state.chunks.map(c => {
+      const vectorScore = cosine(qv, toyEmbedding(c.text));
+      const keywordScore = tokenOverlap(state.query, c.text);
+      const combined = state.hybrid ? (0.55 * vectorScore + 0.45 * keywordScore) : vectorScore;
+      return {...c, vectorScore, keywordScore, retrievalScore: combined, rankScore: combined};
+    }).sort((a,b) => b.retrievalScore - a.retrievalScore);
+    state.retrieved = rows.slice(0, Math.max(1, Number(state.topK) || 3));
+    state.ranked = [...state.retrieved].map(c => ({
+      ...c,
+      rankScore: state.rerank ? rerankScore(state.query, c.text, c.retrievalScore) : c.retrievalScore
+    })).sort((a,b) => b.rankScore-a.rankScore);
+    state.answer = "";
+  }
+  function rerankScore(query, text, base) {
+    const q = new Set(words(query).filter(w => w.length > 2));
+    const t = words(text);
+    let matches=0;
+    q.forEach(w => { if (t.includes(w)) matches++; });
+    const coverage = q.size ? matches/q.size : 0;
+    const phraseBonus = text.toLowerCase().includes(query.toLowerCase()) ? .25 : 0;
+    return Math.min(1, base * .45 + coverage * .5 + phraseBonus);
+  }
+  function getContextChunks() { return (state.ranked.length ? state.ranked : state.retrieved).slice(0, Number(state.topK)||3); }
+  function generateAnswer() {
+    const context = getContextChunks();
+    const all = context.map(c => c.text).join(" ");
+    const q = state.query.toLowerCase();
+    let answer = "";
+    if (!context.length) {
+      answer = "I couldn't find relevant passages in the selected documents. Try selecting more source documents or changing your query.";
+    } else if (q.includes("vacation") || q.includes("paid time off") || q.includes("leave") || q.includes("days off")) {
+      const match = all.match(/(?:receive|gets?|have|entitled to)\s+(\d+)\s+(?:paid\s+)?vacation days/i) || all.match(/(\d+)\s+paid vacation days/i);
+      answer = match ? `Full-time employees receive ${match[1]} paid vacation days each calendar year.` : "The retrieved passages don't clearly state the number of vacation days. I would avoid guessing and check the source policy.";
+    } else if (q.includes("remote") || q.includes("work from home") || q.includes("hybrid")) {
+      const match = all.match(/(?:remotely up to|work remotely up to)\s+([^,.]+)/i);
+      answer = match ? `Employees may work remotely ${match[1]} with manager approval.` : "The retrieved passages do not clearly answer the remote-work question.";
+    } else if (q.includes("multi-factor") || q.includes("mfa") || q.includes("password") || q.includes("security")) {
+      const pieces = [];
+      if (/multi-factor authentication/i.test(all)) pieces.push("Employees must enable multi-factor authentication.");
+      const pw = all.match(/Passwords should be ([^.]+)/i);
+      if (pw) pieces.push(`Passwords should be ${pw[1]}.`);
+      answer = pieces.length ? pieces.join(" ") : "The retrieved context does not contain enough evidence to answer confidently.";
+    } else {
+      answer = `I found ${context.length} relevant passage${context.length===1?"":"s"} in the knowledge base. Based on the retrieved context: ${context[0].text}${context.length > 1 ? " " + context[1].text : ""}`;
+      if (answer.length > 420) answer = answer.slice(0,417) + "...";
+    }
+    state.answer = answer;
+  }
+  function notify(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(notify.timer); notify.timer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+  function updateProgress() {
+    const n = state.step + 1;
+    $("progressLabel").textContent = `STEP ${n} OF 7 · ${["INGEST","CHUNK","EMBED","STORE","RETRIEVE","RERANK","GENERATE"][state.step]}`;
+    $("progressPct").textContent = `${Math.round(n/7*100)}% complete`;
+    $("progressFill").style.width = `${n/7*100}%`;
+    $("sideProgress").style.width = `${state.step/6*100}%`;
+    $("statusText").textContent = state.step === 0 ? "Documents ready to ingest." :
+      state.step === 1 ? `${selectedDocs().length} selected source documents.` :
+      state.step === 2 ? `${state.chunks.length} chunks created.` :
+      state.step === 3 ? `${state.embeddings.length} vector records prepared.` :
+      state.step === 4 ? `${state.retrieved.length} candidate chunks retrieved.` :
+      state.step === 5 ? `${state.ranked.length} chunks ranked for context.` :
+      state.answer ? "Answer generated from retrieved context." : "Context is ready for generation.";
+    document.querySelectorAll(".nav-step").forEach((b,i) => b.classList.toggle("active", i===state.step));
+    $("prevBtn").disabled = state.step===0;
+    $("prevBtn").style.opacity = state.step===0 ? ".45" : "1";
+    $("nextBtn").textContent = state.step===6 ? "✓ Pipeline complete" : `Next: ${["Chunk text","Create embeddings","Build knowledge base","Retrieve context","Rerank results","Generate answer"][state.step]} →`;
+    $("nextBtn").disabled = state.step===6;
+    $("sideConcept").innerHTML = escapeHTML(stageInfo[state.step].concept).replace(/\n/g,"<br>");
+  }
+  function docsHTML() {
+    return `<div class="panel">
+      <div class="panel-head"><h3>Source documents</h3><span class="tag pink">${selectedDocs().length} selected</span></div>
+      <div class="doc-grid">${state.docs.map(d=>`<label class="doc ${d.selected?'selected':''}">
+        <div class="doc-top"><span class="doc-emoji">${d.emoji}</span><span class="tag">${d.id}</span></div>
+        <h4>${escapeHTML(d.title)}</h4><p>${escapeHTML(d.description)}</p>
+        <input class="doc-check" type="checkbox" data-doc="${d.id}" ${d.selected?'checked':''} aria-label="Select ${escapeHTML(d.title)}">
+      </label>`).join("")}</div>
+      <div class="callout"><span>💡</span><div><strong>Think of these as your private knowledge.</strong> A RAG system ingests trusted documents so the assistant can look up facts when a question arrives.</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Add a custom document</h3><span class="tag">Optional</span></div>
+      <label class="field-label" for="customTitle">Document title</label><input id="customTitle" type="text" placeholder="e.g. Employee benefits FAQ">
+      <div style="height:10px"></div><label class="field-label" for="customText">Document text</label><textarea id="customText" placeholder="Paste a short paragraph of information your assistant should know..."></textarea>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="primary-btn" id="addDoc">＋ Add document</button></div>
+      <p class="hint">Everything runs locally in this page. Your text is not uploaded to a server.</p>
+    </div>`;
+  }
+  function chunksHTML() {
+    if (!state.chunks.length) buildChunks();
+    return `<div class="panel"><div class="panel-head"><h3>Chunking settings</h3><span class="tag purple">${state.chunks.length} chunks</span></div>
+      <div class="search-modes">
+        <div><label class="field-label" for="chunkSize">Words per chunk</label><select id="chunkSize"><option value="15">15 words · smaller</option><option value="25" selected>25 words · balanced</option><option value="40">40 words · larger</option></select></div>
+        <div><label class="field-label" for="overlap">Overlap between chunks</label><select id="overlap"><option value="0">0 words</option><option value="5" selected>5 words</option><option value="10">10 words</option></select></div>
+      </div><div style="height:12px"></div><button class="primary-btn" id="rechunk">Re-chunk documents</button>
+      <p class="hint">Overlap repeats a few words from the end of one chunk at the start of the next, helping preserve context.</p>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Generated chunks</h3><span class="tiny-label">Original text slices</span></div>
+      ${state.chunks.length ? `<div class="chunk-grid">${state.chunks.map(c=>`<article class="chunk"><div class="chunk-head"><span class="chunk-id">${c.id}</span><span class="tag">${escapeHTML(c.docId)}</span></div><p>${escapeHTML(c.text)}</p><div class="chunk-meta"><span class="tag">${c.end-c.start} words</span><span class="tag">${escapeHTML(c.title)}</span></div></article>`).join("")}</div>` : `<div class="empty">No chunks yet. Go back and select at least one document.</div>`}
+    </div>`;
+  }
+  function embeddingHTML() {
+    if (!state.embeddings.length) buildChunks();
+    return `<div class="panel"><div class="panel-head"><h3>Text → vector</h3><span class="tag purple">Toy embedding model</span></div>
+      <p class="hint" style="margin-top:0;margin-bottom:16px">Real embedding models turn text into hundreds or thousands of learned numerical dimensions. This demo uses a simple word-frequency vector so you can inspect the idea without a model or API.</p>
+      <div class="embedding-list">${state.embeddings.slice(0,8).map((e,i)=>{const vals=Object.values(e.vector).slice(0,12);return `<div class="embedding-row"><span class="chunk-id">${e.id}</span><div><div class="vector">${vals.map((v,j)=>`<span title="dimension ${j+1}: ${v}" style="height:${Math.max(5,Math.min(25,5+v*7))}px;opacity:${.35+Math.min(v,.9)*.5}"></span>`).join("")}</div><div class="hint" style="margin-top:3px">${escapeHTML(e.text.slice(0,78))}${e.text.length>78?'…':''}</div></div><span class="tag">${Object.keys(e.vector).length} dimensions</span></div>`}).join("")}</div>
+      ${state.embeddings.length>8?`<p class="hint">Showing 8 of ${state.embeddings.length} chunk vectors.</p>`:""}
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Why vectors help</h3><span class="tag blue">Concept</span></div>
+      <div class="search-modes"><div class="mode-card"><h4>Text</h4><p>“How much annual leave do staff get?”</p><span class="tag">Human-readable</span></div><div class="mode-card"><h4>Embedding</h4><p>[0.12, −0.04, 0.88, …]</p><span class="tag purple">Numerical representation</span></div></div>
+      <div class="callout"><span>⚠️</span><div><strong>Important limitation:</strong> this toy vector does not understand synonyms like a real semantic embedding model. It mostly compares overlapping words. It is for learning the pipeline, not measuring production-quality semantic similarity.</div></div>
+    </div>`;
+  }
+  function databaseHTML() {
+    if (!state.embeddings.length) buildChunks();
+    return `<div class="panel"><div class="panel-head"><h3>Vector database records</h3><span class="tag green">${state.embeddings.length} records</span></div>
+      <p class="hint" style="margin-top:0">A typical record links the vector to the readable chunk and its metadata. The database is simulated in memory for this demo.</p>
+      ${state.embeddings.length ? state.embeddings.map(e=>`<div class="db-record"><div class="db-icon">🧊</div><div><strong>${e.id} · ${escapeHTML(e.title)}</strong><p>${escapeHTML(e.text.slice(0,112))}${e.text.length>112?'…':''}</p><div class="chunk-meta"><span class="tag">source: ${e.docId}</span><span class="tag">${Object.keys(e.vector).length} dims</span></div></div><span class="tag green">Vector + text</span></div>`).join("") : `<div class="empty">No records. Select documents and create chunks first.</div>`}
+      <div class="callout"><span>🗂️</span><div><strong>Metadata matters.</strong> A real system may store document title, URL, page number, date, access rules, and other fields so it can filter results or show citations.</div></div>
+    </div>`;
+  }
+  function retrieveHTML() {
+    search();
+    return `<div class="panel"><div class="panel-head"><h3>Ask your knowledge base</h3><span class="tag pink">Query time</span></div>
+      <label class="field-label" for="queryInput">Your question</label><textarea id="queryInput" style="min-height:80px">${escapeHTML(state.query)}</textarea>
+      <div class="search-modes" style="margin-top:13px">
+        <div class="mode-card"><h4>🔮 Vector search</h4><p>Find chunks with similar vector representations. In this simulator, the vector is a simple word-frequency vector.</p><span class="tag purple">Meaning-ish match</span></div>
+        <div class="mode-card"><h4>🔤 Keyword search</h4><p>Look for query terms that appear in each chunk. Useful for names, codes, and exact phrases.</p><span class="tag blue">Exact terms</span></div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:14px">
+        <label style="display:flex;gap:8px;align-items:center;font-size:12px;font-weight:750"><input id="hybridToggle" type="checkbox" ${state.hybrid?'checked':''}> Combine both (hybrid)</label>
+        <label style="display:flex;gap:8px;align-items:center;font-size:12px;font-weight:750">Top K <select id="topK" style="width:auto;padding:7px 9px"><option ${state.topK===1?'selected':''}>1</option><option ${state.topK===2?'selected':''}>2</option><option ${state.topK===3?'selected':''}>3</option><option ${state.topK===5?'selected':''}>5</option></select></label>
+        <button class="primary-btn" id="runSearch">⌕ Run retrieval</button>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Retrieved candidates</h3><span class="tag">${state.retrieved.length} of ${state.chunks.length} chunks</span></div>
+      ${state.retrieved.length ? `<div class="rank-list">${state.retrieved.map((c,i)=>`<div class="rank-item"><div class="rank-number">${i+1}</div><div><strong>${c.id} · ${escapeHTML(c.title)}</strong><p>${escapeHTML(c.text)}</p></div><div class="score"><b>${(c.retrievalScore*100).toFixed(0)}%</b><span>${state.hybrid?'hybrid score':'vector score'}</span></div></div>`).join("")}</div>` : `<div class="empty">No matching chunks. Add or select source documents first.</div>`}
+      <div class="callout"><span>🧠</span><div><strong>Top K</strong> means “return the K highest-ranked candidates.” A real system may retrieve more candidates first, rerank them, and keep only a smaller context set.</div></div>
+    </div>`;
+  }
+  function rerankHTML() {
+    search();
+    return `<div class="panel"><div class="panel-head"><h3>Reranking controls</h3><span class="tag purple">Optional stage</span></div>
+      <label style="display:flex;gap:9px;align-items:center;font-size:12px;font-weight:750"><input type="checkbox" id="rerankToggle" ${state.rerank?'checked':''}> Enable illustrative reranking</label>
+      <p class="hint">The toy reranker gives more weight to query-term coverage after initial retrieval. Real rerankers often use a separate model to assess the query and passage together.</p>
+      <div style="height:12px"></div><button class="primary-btn" id="rerankNow">Recalculate ranking</button>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Before vs. after</h3><span class="tiny-label">Candidate ordering</span></div>
+      ${state.ranked.length ? `<div class="rank-list">${state.ranked.map((c,i)=>`<div class="rank-item"><div class="rank-number">${i+1}</div><div><strong>${c.id} · ${escapeHTML(c.title)}</strong><p>${escapeHTML(c.text)}</p><div class="chunk-meta"><span class="tag">retrieval ${(c.retrievalScore*100).toFixed(0)}%</span><span class="tag purple">rank ${(c.rankScore*100).toFixed(0)}%</span></div></div><div class="score"><b>${(c.rankScore*100).toFixed(0)}%</b><span>${state.rerank?'rerank score':'original score'}</span></div></div>`).join("")}</div>` : `<div class="empty">Run retrieval in the previous step to create candidates.</div>`}
+      <div class="callout"><span>🎯</span><div><strong>Recall vs. ordering:</strong> retrieval finds candidates; reranking changes their order. If the right chunk is missing from the candidate set, reranking cannot bring it back.</div></div>
+    </div>`;
+  }
+  function generateHTML() {
+    search();
+    if (!state.answer) generateAnswer();
+    const context = getContextChunks();
+    return `<div class="panel"><div class="panel-head"><h3>Context sent to the LLM</h3><span class="tag green">${context.length} passages</span></div>
+      <p class="hint" style="margin-top:0">A simplified view of the prompt assembled by the RAG application.</p>
+      <div class="chunk" style="margin-bottom:10px"><div class="chunk-head"><span class="chunk-id">SYSTEM INSTRUCTION</span><span class="tag">Prompt</span></div><p>Answer the user's question using the supplied context. If the context does not contain the answer, say you don't have enough information. Do not invent facts.</p></div>
+      <div class="chunk" style="margin-bottom:10px"><div class="chunk-head"><span class="chunk-id">USER QUESTION</span><span class="tag blue">Query</span></div><p>${escapeHTML(state.query)}</p></div>
+      <div class="chunk"><div class="chunk-head"><span class="chunk-id">RETRIEVED CONTEXT</span><span class="tag purple">${context.length} chunks</span></div>${context.length?context.map(c=>`<p style="margin:0 0 8px"><span class="answer-cite">[${c.id}]</span> ${escapeHTML(c.text)}</p>`).join(""):`<p>No context was retrieved.</p>`}</div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>Generated answer</h3><span class="tag pink">LLM output · simulated</span></div>
+      <div class="answer-box"><p>${escapeHTML(state.answer)}</p><div style="margin-top:12px">${context.map(c=>`<span class="answer-cite">Source: ${c.id}</span>`).join(" ")}</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><button class="primary-btn" id="regenerate">↻ Generate again</button><button class="secondary-btn" id="copyAnswer">Copy answer</button></div>
+      <div class="callout"><span>⚠️</span><div><strong>This is a simulator, not a real LLM.</strong> The answer uses simple demo rules and local text matching. A real RAG app sends the selected context and question to a language model, then should validate grounding and source citations.</div></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>What RAG did here</h3><span class="tag green">Pipeline recap</span></div>
+      <div class="chunk-meta"><span class="tag">1. Documents ingested</span><span class="tag">2. Text chunked</span><span class="tag">3. Vectors created</span><span class="tag">4. Records stored</span><span class="tag">5. Context retrieved</span><span class="tag">6. Results reranked</span><span class="tag">7. Answer generated</span></div>
+      <p class="hint">RAG does not retrain the model. It retrieves external evidence at question time and places that evidence into the model's context.</p>
+    </div>`;
+  }
+  function render() {
+    const info = stageInfo[state.step];
+    $("stageIcon").textContent = info.icon;
+    $("stageTitle").textContent = info.title;
+    $("stageSubtitle").textContent = info.subtitle;
+    let html = "";
+    if (state.step===0) html = docsHTML();
+    if (state.step===1) html = chunksHTML();
+    if (state.step===2) html = embeddingHTML();
+    if (state.step===3) html = databaseHTML();
+    if (state.step===4) html = retrieveHTML();
+    if (state.step===5) html = rerankHTML();
+    if (state.step===6) html = generateHTML();
+    $("stageContent").innerHTML = html;
+    updateProgress();
+    bindStageEvents();
+  }
+  function bindStageEvents() {
+    document.querySelectorAll("[data-doc]").forEach(el => el.addEventListener("change", () => {
+      const d = state.docs.find(x=>x.id===el.dataset.doc);
+      if (d) d.selected = el.checked;
+      buildChunks(); render();
+    }));
+    const add = $("addDoc");
+    if (add) add.addEventListener("click", () => {
+      const title = $("customTitle").value.trim();
+      const text = $("customText").value.trim();
+      if (!title || !text) { notify("Add a title and some document text first."); return; }
+      const id = `DOC-${String(state.docs.length+1).padStart(2,"0")}`;
+      state.docs.push({id,title,emoji:"📝",description:text.slice(0,75)+(text.length>75?"…":""),text,selected:true});
+      buildChunks(); render(); notify("Document added to your local knowledge base.");
+    });
+    const rechunk = $("rechunk");
+    if (rechunk) rechunk.addEventListener("click", () => {
+      const size = Number($("chunkSize").value), overlap = Number($("overlap").value);
+      state.chunks = selectedDocs().flatMap(d => chunkDocument(d,size,Math.min(overlap,size-1)));
+      state.embeddings = state.chunks.map(c=>({...c,vector:toyEmbedding(c.text)}));
+      state.retrieved=[]; state.ranked=[]; state.answer="";
+      render(); notify("Chunks rebuilt with your settings.");
+    });
+    const queryInput = $("queryInput");
+    if (queryInput) queryInput.addEventListener("input", () => { state.query = queryInput.value; });
+    const hybrid = $("hybridToggle");
+    if (hybrid) hybrid.addEventListener("change", () => { state.hybrid=hybrid.checked; });
+    const topK = $("topK");
+    if (topK) topK.addEventListener("change", () => { state.topK=Number(topK.value); });
+    const run = $("runSearch");
+    if (run) run.addEventListener("click", () => { state.query = $("queryInput").value.trim() || "What information is in these documents?"; state.hybrid=$("hybridToggle").checked; state.topK=Number($("topK").value); search(); render(); notify("Retrieval complete."); });
+    const rerankToggle = $("rerankToggle");
+    if (rerankToggle) rerankToggle.addEventListener("change", () => { state.rerank=rerankToggle.checked; });
+    const rerankNow = $("rerankNow");
+    if (rerankNow) rerankNow.addEventListener("click", () => { state.rerank=$("rerankToggle").checked; search(); render(); notify("Ranking updated."); });
+    const regen = $("regenerate");
+    if (regen) regen.addEventListener("click", () => { state.query = $("queryInput")?.value || state.query; search(); generateAnswer(); render(); notify("Demo answer generated."); });
+    const copy = $("copyAnswer");
+    if (copy) copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(state.answer); notify("Answer copied."); }
+      catch { notify("Clipboard access unavailable in this preview."); }
+    });
+  }
+  function goToStep(step) {
+    if (step > 0 && selectedDocs().length===0) { notify("Select at least one document first."); state.step=0; render(); return; }
+    if (step>=1 && !state.chunks.length) buildChunks();
+    if (step>=2 && !state.embeddings.length) buildChunks();
+    if (step>=4) search();
+    if (step>=6) generateAnswer();
+    state.step=Math.max(0,Math.min(6,step));
+    render();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+  document.querySelectorAll(".nav-step").forEach(btn => btn.addEventListener("click",()=>goToStep(Number(btn.dataset.step))));
+  $("prevBtn").addEventListener("click",()=>goToStep(state.step-1));
+  $("nextBtn").addEventListener("click",()=>{ if(state.step<6) goToStep(state.step+1); });
+  function reset() {
+    state = {step:0,docs:starterDocs.map(d=>({...d,selected:true})),chunks:[],embeddings:[],query:"How many vacation days do full-time employees receive?",topK:3,hybrid:true,rerank:true,retrieved:[],ranked:[],answer:""};
+    buildChunks(); render(); window.scrollTo({top:0,behavior:"smooth"}); notify("Simulator reset.");
+  }
+  $("resetTop").addEventListener("click",reset);
+  $("resetHero").addEventListener("click",reset);
+  buildChunks();
+  render();
+})();
+</script>
+</body>
+</html>
